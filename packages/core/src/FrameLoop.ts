@@ -3,6 +3,7 @@ import { Animated } from '@react-spring/animated'
 import { FrameRequestCallback } from 'shared/types'
 import { Controller, FrameUpdate } from './Controller'
 import { ActiveAnimation } from './types/spring'
+import { Spring } from './legacy'
 
 type FrameUpdater = (this: FrameLoop) => boolean
 type FrameListener = (this: FrameLoop, updates: FrameUpdate[]) => void
@@ -183,20 +184,87 @@ export class FrameLoop {
       }
       // Spring easing
       else {
-        velocity = animated.lastVelocity !== void 0 ? animated.lastVelocity : v0
+        function euler() {
+          velocity =
+            animated.lastVelocity !== void 0 ? animated.lastVelocity : v0
 
-        const w0 = Math.sqrt(config.tension! / config.mass!)
+          const w0 = Math.sqrt(config.tension! / config.mass!)
 
-        const dt = 100 / w0
-        const numSteps = Math.ceil(deltaTime / dt)
+          const dt =
+            config.config.dt > 20 ? config.config.dt / w0 : config.config.dt
+          const numSteps = Math.ceil(deltaTime / dt)
 
-        for (let n = 0; n < numSteps; ++n) {
-          const springForce = -config.tension! * (position - to)
-          const dampingForce = -config.friction! * (velocity * 1000)
-          const acceleration = (springForce + dampingForce) / config.mass!
-          velocity = velocity + (acceleration * dt) / (1000 * 1000)
-          position = position + velocity * dt
+          for (let n = 0; n < numSteps; ++n) {
+            const springForce = -config.tension! * (position - to)
+            const dampingForce = -config.friction! * (velocity * 1000)
+            const acceleration = (springForce + dampingForce) / config.mass!
+            velocity = velocity + (acceleration * dt) / (1000 * 1000)
+            position = position + velocity * dt
+          }
         }
+        function analytical() {
+          const c = config.friction!
+          const m = config.mass!
+          const k = config.tension!
+          const x0 = to - from
+
+          const zeta = c / (2 * Math.sqrt(k * m)) // damping ratio (dimensionless)
+          const w0 = Math.sqrt(k / m) / 1000 // undamped angular frequency of the oscillator (rad/ms)
+          const w1 = w0 * Math.sqrt(1.0 - zeta * zeta) // exponential decay
+          const w2 = w0 * Math.sqrt(zeta * zeta - 1.0) // frequency of damped oscillation
+
+          const t = animated.elapsedTime!
+          if (zeta < 1) {
+            // Under damped
+            const envelope = Math.exp(-zeta * w0 * t)
+            position =
+              to -
+              envelope *
+                (((v0 + zeta * w0 * x0) / w1) * Math.sin(w1 * t) +
+                  x0 * Math.cos(w1 * t))
+            // This looks crazy -- it's actually just the derivative of the
+            // position function
+            velocity =
+              zeta *
+                w0 *
+                envelope *
+                ((Math.sin(w1 * t) * (-v0 + zeta * w0 * x0)) / w1 +
+                  x0 * Math.cos(w1 * t)) -
+              envelope *
+                (Math.cos(w1 * t) * (-v0 + zeta * w0 * x0) -
+                  w1 * x0 * Math.sin(w1 * t))
+          } else if (zeta === 1) {
+            // Critically damped
+            const envelope = Math.exp(-w0 * t)
+            position = to - envelope * (x0 + (-v0 + w0 * x0) * t)
+            velocity = envelope * (-v0 * (t * w0 - 1) + t * x0 * (w0 * w0))
+          } else {
+            // Overdamped
+            const envelope = Math.exp(-zeta * w0 * t)
+            position =
+              to -
+              (envelope *
+                ((v0 + zeta * w0 * x0) * Math.sinh(w2 * t) +
+                  w2 * x0 * Math.cosh(w2 * t))) /
+                w2
+            velocity =
+              (envelope *
+                zeta *
+                w0 *
+                (Math.sinh(w2 * t) * (v0 + zeta * w0 * x0) +
+                  x0 * w2 * Math.cosh(w2 * t))) /
+                w2 -
+              (envelope *
+                (w2 * Math.cosh(w2 * t) * (v0 + zeta * w0 * x0) +
+                  w2 * w2 * x0 * Math.sinh(w2 * t))) /
+                w2
+          }
+        }
+
+        const t0 = performance.now()
+        config.config.method === 'euler' ? euler() : analytical()
+        const t1 = performance.now()
+        animated.performance += t1 - t0
 
         // Conditions for stopping the spring animation
         const isBouncing = config.clamp

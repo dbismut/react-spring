@@ -64,6 +64,7 @@ export class AnimatedValue<T = unknown> extends Animated
       this.startTime = G.now()
       this.lastTime = isActive ? this.lastTime : this.startTime
       this.elapsedTime = isActive ? this.elapsedTime : 0
+      this.performance = 0
     }
     this.done = false
     this.views.clear()
