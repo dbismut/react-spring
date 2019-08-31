@@ -264,7 +264,7 @@ export class FrameLoop {
         const t0 = performance.now()
         config.config.method === 'euler' ? euler() : analytical()
         const t1 = performance.now()
-        animated.performance += t1 - t0
+        animated.performance = t1 - t0
 
         // Conditions for stopping the spring animation
         const isBouncing = config.clamp
