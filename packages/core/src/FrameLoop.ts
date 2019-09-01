@@ -213,18 +213,16 @@ export class FrameLoop {
           const numSteps = Math.ceil(deltaTime / dt)
 
           for (let n = 0; n < numSteps; ++n) {
-            let springForce = -config.tension! * (position - to)
-            let dampingForce = -config.friction! * (velocity * 1000)
-            let acceleration =
-              (springForce + dampingForce) / config.mass! / (1000 * 1000)
+            let prevPos = position
+            let springForce = (-config.tension! / 1000000) * (position - to)
+            let dampingForce = (-config.friction! / 1000) * velocity
+            let acceleration = (springForce + dampingForce) / config.mass!
             position =
               position + velocity * dt + (1 - ((dt * dt) / 2) * acceleration)
-            springForce = -config.tension! * (position - to)
-            let acceleration1 =
-              (springForce + dampingForce) / config.mass! / (1000 * 1000)
+            springForce = (-config.tension! / 1000000) * (position - to)
+            let acceleration1 = (springForce + dampingForce) / config.mass!
             velocity = velocity + ((acceleration + acceleration1) * dt) / 2
           }
-          console.log('verlet', velocity)
         }
         function analytical() {
           const c = config.friction!
@@ -286,7 +284,17 @@ export class FrameLoop {
         }
 
         const t0 = performance.now()
-        config.config.method === 'euler' ? euler() : analytical()
+        switch (config.config.method) {
+          case 'euler':
+            euler()
+            break
+          case 'verlet':
+            verlet()
+            break
+          default:
+            analytical()
+        }
+
         const t1 = performance.now()
         animated.performance = t1 - t0
 
