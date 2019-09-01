@@ -195,12 +195,36 @@ export class FrameLoop {
           const numSteps = Math.ceil(deltaTime / dt)
 
           for (let n = 0; n < numSteps; ++n) {
-            const springForce = -config.tension! * (position - to)
-            const dampingForce = -config.friction! * (velocity * 1000)
+            const springForce = (-config.tension! / 1000000) * (position - to)
+            const dampingForce = (-config.friction! / 1000) * velocity
             const acceleration = (springForce + dampingForce) / config.mass!
-            velocity = velocity + (acceleration * dt) / (1000 * 1000)
+            velocity = velocity + acceleration * dt
             position = position + velocity * dt
           }
+        }
+        function verlet() {
+          velocity =
+            animated.lastVelocity !== void 0 ? animated.lastVelocity : v0
+
+          const w0 = Math.sqrt(config.tension! / config.mass!)
+
+          const dt =
+            config.config.dt > 20 ? config.config.dt / w0 : config.config.dt
+          const numSteps = Math.ceil(deltaTime / dt)
+
+          for (let n = 0; n < numSteps; ++n) {
+            let springForce = -config.tension! * (position - to)
+            let dampingForce = -config.friction! * (velocity * 1000)
+            let acceleration =
+              (springForce + dampingForce) / config.mass! / (1000 * 1000)
+            position =
+              position + velocity * dt + (1 - ((dt * dt) / 2) * acceleration)
+            springForce = -config.tension! * (position - to)
+            let acceleration1 =
+              (springForce + dampingForce) / config.mass! / (1000 * 1000)
+            velocity = velocity + ((acceleration + acceleration1) * dt) / 2
+          }
+          console.log('verlet', velocity)
         }
         function analytical() {
           const c = config.friction!
