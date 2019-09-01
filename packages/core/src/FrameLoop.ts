@@ -219,9 +219,15 @@ export class FrameLoop {
             let acceleration = (springForce + dampingForce) / config.mass!
             position =
               position + velocity * dt + (1 - ((dt * dt) / 2) * acceleration)
+
             springForce = (-config.tension! / 1000000) * (position - to)
             let acceleration1 = (springForce + dampingForce) / config.mass!
-            velocity = velocity + ((acceleration + acceleration1) * dt) / 2
+            velocity =
+              velocity -
+              ((prevPos + position) * dt * config.tension!) /
+                1000000 /
+                config.mass! /
+                2
           }
         }
         function analytical() {
