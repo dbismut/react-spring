@@ -101,6 +101,7 @@ export interface SpringConfig {
   precision?: number
   delay?: number
   decay?: number | boolean
+  progress?: number
   duration?: number
   easing?: EasingFunction
 }
@@ -177,6 +178,7 @@ export interface ActiveAnimation<T = unknown, P extends string = string>
   config: SpringConfig
   initialVelocity: number
   immediate: boolean
+  w0: number
   toValues: Arrify<T>
   fromValues: Arrify<T>
 }
