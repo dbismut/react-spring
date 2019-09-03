@@ -4,7 +4,7 @@ import { FrameRequestCallback } from 'shared/types'
 import { Controller, FrameUpdate } from './Controller'
 import { ActiveAnimation } from './types/spring'
 
-type FrameUpdater = (this: FrameLoop, time: number) => boolean
+type FrameUpdater = (this: FrameLoop, time?: number) => boolean
 type FrameListener = (this: FrameLoop, updates: FrameUpdate[]) => void
 type RequestFrameFn = (cb: FrameRequestCallback) => number | void
 
@@ -69,37 +69,39 @@ export class FrameLoop {
           return false
         }
 
-        time = time !== void 0 ? time : Date.now()
+        time = time !== void 0 ? time : performance.now()
         this.lastTime = this.lastTime !== void 0 ? this.lastTime : time
-        let step = time - this.lastTime!
+        let dt = time - this.lastTime!
 
         // http://gafferongames.com/game-physics/fix-your-timestep/
-        if (step > 64) step = 64
+        if (dt > 64) dt = 64
 
-        // Update the animations.
-        const updates: FrameUpdate[] = []
-        for (const id of Array.from(this.controllers.keys())) {
-          let idle = true
-          const ctrl = this.controllers.get(id)!
-          const changes: FrameUpdate[2] = ctrl.props.onFrame ? [] : null
-          for (const config of ctrl.configs) {
-            if (config.idle) continue
-            if (this.advance(step, config, changes)) {
-              idle = false
+        if (dt > 0) {
+          // Update the animations.
+          const updates: FrameUpdate[] = []
+          for (const id of Array.from(this.controllers.keys())) {
+            let idle = true
+            const ctrl = this.controllers.get(id)!
+            const changes: FrameUpdate[2] = ctrl.props.onFrame ? [] : null
+            for (const config of ctrl.configs) {
+              if (config.idle) continue
+              if (this.advance(dt, config, changes)) {
+                idle = false
+              }
+            }
+            if (idle || changes) {
+              updates.push([id, idle, changes])
             }
           }
-          if (idle || changes) {
-            updates.push([id, idle, changes])
+
+          // Notify the controllers!
+          this.onFrame(updates)
+          this.lastTime = time
+
+          // Are we done yet?
+          if (!this.controllers.size) {
+            return !(this.idle = true)
           }
-        }
-
-        // Notify the controllers!
-        this.onFrame(updates)
-        this.lastTime = time
-
-        // Are we done yet?
-        if (!this.controllers.size) {
-          return !(this.idle = true)
         }
 
         // Keep going.
@@ -123,7 +125,7 @@ export class FrameLoop {
 
   /** Advance an animation forward one frame. */
   advance(
-    step: number,
+    dt: number,
     config: ActiveAnimation,
     changes: FrameUpdate[2]
   ): boolean {
@@ -151,11 +153,14 @@ export class FrameLoop {
         continue
       }
 
-      const elapsed = (animated.elapsedTime! += step)
+      const elapsed = (animated.elapsedTime += dt)
 
       const v0 = Array.isArray(config.initialVelocity)
         ? config.initialVelocity[i]
         : config.initialVelocity
+
+      const precision =
+        config.precision || Math.min(1, Math.abs(to - from) / 1000)
 
       let finished = false
       let position = animated.lastPosition
@@ -163,15 +168,14 @@ export class FrameLoop {
       let velocity: number = 0
 
       // Duration easing
-      if (config.duration !== void 0) {
-        const progress =
-          config.progress! +
-          (1 - config.progress!) * Math.min(1, elapsed / config.duration)
+      if (config.duration != null) {
+        let p = config.progress!
+        p += (1 - p) * Math.min(1, elapsed / config.duration)
 
-        position = from + config.easing!(progress) * (to - from)
-        velocity = (position - animated.lastPosition) / step
+        position = from + config.easing!(p) * (to - from)
+        velocity = (position - animated.lastPosition) / dt
 
-        finished = progress == 1
+        finished = p == 1
       }
       // Decay easing
       else if (config.decay) {
@@ -193,18 +197,18 @@ export class FrameLoop {
 
           //const w0 = (2 * Math.sqrt(config.tension! / config.mass!)) / 1000 // angular frequency in rad/ms
 
-          const dt =
-            config.config.dt > 20
-              ? config.config.dt / config.w0 / 1000
-              : config.config.dt
-          const numSteps = Math.ceil(step / dt)
+          const step =
+            config.config.step > 20
+              ? config.config.spep / config.w0 / 1000
+              : config.config.step
+          const numSteps = Math.ceil(dt / step)
 
           for (let n = 0; n < numSteps; ++n) {
             const springForce = (-config.tension! / 1000000) * (position - to)
             const dampingForce = (-config.friction! / 1000) * velocity
             const acceleration = (springForce + dampingForce) / config.mass!
-            velocity = velocity + acceleration * dt
-            position = position + velocity * dt
+            velocity = velocity + acceleration * step
+            position = position + velocity * step
           }
         }
         // function euler2() {
@@ -312,11 +316,9 @@ export class FrameLoop {
             -velocity * (typeof config.clamp! === 'number' ? config.clamp! : 0)
         }
 
-        const isVelocity = Math.abs(velocity) <= config.precision!
+        const isVelocity = Math.abs(velocity) <= precision
         const isDisplacement =
-          config.tension !== 0
-            ? Math.abs(to - position) <= config.precision!
-            : true
+          config.tension !== 0 ? Math.abs(to - position) <= precision : true
 
         finished =
           (isBouncing && velocity === 0) || (isVelocity && isDisplacement)
