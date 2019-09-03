@@ -195,11 +195,9 @@ export class FrameLoop {
           velocity =
             animated.lastVelocity !== void 0 ? animated.lastVelocity : v0
 
-          //const w0 = (2 * Math.sqrt(config.tension! / config.mass!)) / 1000 // angular frequency in rad/ms
-
           const step =
             config.config.step > 20
-              ? config.config.spep / config.w0 / 1000
+              ? config.config.step / config.w0 / 1000
               : config.config.step
           const numSteps = Math.ceil(dt / step)
 
