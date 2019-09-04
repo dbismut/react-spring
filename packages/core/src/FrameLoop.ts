@@ -197,36 +197,81 @@ export class FrameLoop {
 
           const step =
             config.config.step > 20
-              ? config.config.step / config.w0 / 1000
+              ? (config.config.step / config.w0) * 0.001
               : config.config.step
           const numSteps = Math.ceil(dt / step)
 
           for (let n = 0; n < numSteps; ++n) {
-            const springForce = (-config.tension! / 1000000) * (position - to)
-            const dampingForce = (-config.friction! / 1000) * velocity
+            const springForce = -config.tension! * 0.000001 * (position - to)
+            const dampingForce = -config.friction! * 0.001 * velocity
             const acceleration = (springForce + dampingForce) / config.mass!
             velocity = velocity + acceleration * step
             position = position + velocity * step
           }
         }
-        // function euler2() {
-        //   velocity =
-        //     animated.lastVelocity !== void 0 ? animated.lastVelocity : v0
 
-        //   const dt =
-        //     config.config.dt > 20
-        //       ? config.config.dt / config.w0 / 1000
-        //       : config.config.dt
-        //   const numSteps = Math.ceil(step / dt)
-        //   for (let n = 0; n < numSteps; ++n) {
-        //     const acceleration =
-        //       ((-config.tension! / 1000000) * (position - to)) / config.mass! // f = a * m <=> a = f / m
-        //     velocity =
-        //       (velocity + acceleration * dt) *
-        //       Math.pow(1 - config.friction! / 100, dt)
-        //     position = position + velocity * dt
-        //   }
-        // }
+        function rk4() {
+          const tension = config.tension!
+          const friction = config.friction!
+          velocity =
+            animated.lastVelocity !== void 0 ? animated.lastVelocity : v0
+          let tempPosition = animated.tempPosition || position || 0
+          let tempVelocity = animated.tempVelocity || velocity
+          let aVelocity
+          let aAcceleration
+          let bVelocity
+          let bAcceleration
+          let cVelocity
+          let cAcceleration
+          let dVelocity
+          let dAcceleration
+          let dxdt
+          let dvdt
+
+          const step =
+            config.config.step > 20
+              ? (config.config.step / config.w0) * 0.001
+              : config.config.step
+          const numSteps = Math.ceil(dt / step)
+
+          for (let n = 0; n < numSteps; ++n) {
+            aVelocity = velocity
+            aAcceleration = tension * (to - tempPosition) - friction * velocity
+
+            tempPosition = position + aVelocity * step * 0.5 * 0.001
+            tempVelocity = velocity + aAcceleration * step * 0.5 * 0.001
+            bVelocity = tempVelocity
+            bAcceleration =
+              tension * (to - tempPosition) - friction * tempVelocity
+
+            tempPosition = position + bVelocity * step * 0.5 * 0.001
+            tempVelocity = velocity + bAcceleration * step * 0.5 * 0.001
+            cVelocity = tempVelocity
+            cAcceleration =
+              tension * (to - tempPosition) - friction * tempVelocity
+
+            tempPosition = position + cVelocity * step * 0.001
+            tempVelocity = velocity + cAcceleration * step * 0.001
+            dVelocity = tempVelocity
+            dAcceleration =
+              tension * (to - tempPosition) - friction * tempVelocity
+
+            dxdt =
+              (1.0 / 6.0) *
+              (aVelocity + 2.0 * (bVelocity + cVelocity) + dVelocity)
+            dvdt =
+              (1.0 / 6.0) *
+              (aAcceleration +
+                2.0 * (bAcceleration + cAcceleration) +
+                dAcceleration)
+
+            position += dxdt * step * 0.001
+            velocity += dvdt * step * 0.001
+          }
+
+          animated.tempPosition = tempPosition
+          animated.tempVelocity = tempVelocity
+        }
         function analytical() {
           const c = config.friction!
           const m = config.mass!
@@ -291,9 +336,9 @@ export class FrameLoop {
           case 'euler':
             euler()
             break
-          // case 'euler2':
-          //   euler2()
-          //   break
+          case 'rk4':
+            rk4()
+            break
           default:
             analytical()
         }
