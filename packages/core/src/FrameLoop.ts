@@ -236,25 +236,30 @@ export class FrameLoop {
 
           for (let n = 0; n < numSteps; ++n) {
             aVelocity = velocity
-            aAcceleration = tension * (to - tempPosition) - friction * velocity
+            aAcceleration =
+              (tension * (to - tempPosition) - friction * velocity) /
+              config.mass!
 
             tempPosition = position + aVelocity * step * 0.5 * 0.001
             tempVelocity = velocity + aAcceleration * step * 0.5 * 0.001
             bVelocity = tempVelocity
             bAcceleration =
-              tension * (to - tempPosition) - friction * tempVelocity
+              (tension * (to - tempPosition) - friction * tempVelocity) /
+              config.mass!
 
             tempPosition = position + bVelocity * step * 0.5 * 0.001
             tempVelocity = velocity + bAcceleration * step * 0.5 * 0.001
             cVelocity = tempVelocity
             cAcceleration =
-              tension * (to - tempPosition) - friction * tempVelocity
+              (tension * (to - tempPosition) - friction * tempVelocity) /
+              config.mass!
 
             tempPosition = position + cVelocity * step * 0.001
             tempVelocity = velocity + cAcceleration * step * 0.001
             dVelocity = tempVelocity
             dAcceleration =
-              tension * (to - tempPosition) - friction * tempVelocity
+              (tension * (to - tempPosition) - friction * tempVelocity) /
+              config.mass!
 
             dxdt =
               (1.0 / 6.0) *
@@ -292,6 +297,7 @@ export class FrameLoop {
               envelope *
                 (((v0 + zeta * w0 * x0) / w1) * Math.sin(w1 * t) +
                   x0 * Math.cos(w1 * t))
+
             // This looks crazy -- it's actually just the derivative of the
             // position function
             velocity =
@@ -311,6 +317,7 @@ export class FrameLoop {
           } else {
             // Overdamped
             const envelope = Math.exp(-zeta * w0 * t)
+
             position =
               to -
               (envelope *
@@ -331,16 +338,47 @@ export class FrameLoop {
           }
         }
 
+        function simple() {
+          const c = config.friction!
+          const m = config.mass!
+          const k = config.tension!
+          const t = animated.elapsedTime!
+
+          const zeta = c / (2 * Math.sqrt(k * m))
+          const w0 = Math.sqrt(k / m) / 1000
+          const x0 = to - from
+
+          const prevPosition = position
+
+          if (zeta < 1) {
+            const envelope = Math.exp(-zeta * w0 * t)
+            const w1 = w0 * Math.sqrt(1.0 - zeta * zeta)
+
+            position =
+              to -
+              envelope *
+                (((v0 + zeta * w0 * x0) / w1) * Math.sin(w1 * t) +
+                  x0 * Math.cos(w1 * t))
+          } else {
+            const envelope = Math.exp(-w0 * t)
+            position = to - envelope * (x0 + (v0 + w0 * x0) * t)
+          }
+          velocity = (position - prevPosition) / dt
+        }
+
         const t0 = performance.now()
         switch (config.config.method) {
-          case 'euler':
-            euler()
+          case 'analytical':
+            analytical()
             break
           case 'rk4':
             rk4()
             break
+          case 'simple':
+            simple()
+            break
           default:
-            analytical()
+            euler()
         }
 
         const t1 = performance.now()
