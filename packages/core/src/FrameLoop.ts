@@ -195,10 +195,11 @@ export class FrameLoop {
           velocity =
             animated.lastVelocity !== void 0 ? animated.lastVelocity : v0
 
+          const configStep = config.config.step || 50
+
           const step =
-            config.config.step > 20
-              ? (config.config.step / config.w0) * 0.001
-              : config.config.step
+            configStep > 20 ? (configStep / config.w0) * 0.001 : configStep
+
           const numSteps = Math.ceil(dt / step)
 
           for (let n = 0; n < numSteps; ++n) {
@@ -228,10 +229,11 @@ export class FrameLoop {
           let dxdt
           let dvdt
 
+          const configStep = config.config.step || 50
+
           const step =
-            config.config.step > 20
-              ? (config.config.step / config.w0) * 0.001
-              : config.config.step
+            configStep > 20 ? (configStep / config.w0) * 0.001 : configStep
+
           const numSteps = Math.ceil(dt / step)
 
           for (let n = 0; n < numSteps; ++n) {
