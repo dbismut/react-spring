@@ -200,6 +200,8 @@ export class FrameLoop {
           const step =
             configStep > 20 ? (configStep / config.w0) * 0.001 : configStep
 
+          console.log(step)
+
           const numSteps = Math.ceil(dt / step)
 
           for (let n = 0; n < numSteps; ++n) {
@@ -208,6 +210,34 @@ export class FrameLoop {
             const acceleration = (springForce + dampingForce) / config.mass!
             velocity = velocity + acceleration * step
             position = position + velocity * step
+          }
+        }
+
+        function verlet() {
+          const friction = config.friction!
+          const tension = config.tension!
+          const mass = config.mass!
+
+          const configStep = config.config.step || 50
+          let step =
+            configStep > 20 ? (configStep / config.w0) * 0.001 : configStep
+
+          const numSteps = Math.ceil(dt / step)
+          for (let n = 0; n < numSteps; ++n) {
+            const springForce = -config.tension! * 0.000001 * (position - to)
+            const dampingForce = -config.friction! * 0.001 * velocity
+            const acceleration = (springForce + dampingForce) / config.mass!
+
+            // velocity =
+
+            velocity =
+              ((1 - (friction * step) / 2) / (1 + step / 2)) * velocity +
+              (step / (mass * (1 + (friction * step) / 2))) *
+                (-tension * (position - to)) -
+              tension / mass / (1 + (friction * step) / 2)
+
+            position = position + velocity * step
+            console.log(velocity)
           }
         }
 
@@ -279,6 +309,7 @@ export class FrameLoop {
           animated.tempPosition = tempPosition
           animated.tempVelocity = tempVelocity
         }
+
         function analytical() {
           const c = config.friction!
           const m = config.mass!
@@ -378,6 +409,9 @@ export class FrameLoop {
             break
           case 'simple':
             simple()
+            break
+          case 'verlet':
+            verlet()
             break
           default:
             euler()
