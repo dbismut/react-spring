@@ -60,8 +60,11 @@ export class AnimatedValue<T = unknown> extends Animated
       this.from = undefined
       if (!isActive) {
         this.lastVelocity = undefined
+      } else {
+        this.v0 = this.lastVelocity
       }
       this.elapsedTime = 0
+      this.resetTime = 0
     }
     this.done = false
     this.views.clear()

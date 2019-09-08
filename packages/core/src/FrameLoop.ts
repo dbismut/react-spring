@@ -195,7 +195,6 @@ export class FrameLoop {
         function euler() {
           velocity =
             animated.lastVelocity !== void 0 ? animated.lastVelocity : v0
-          console.log(velocity)
 
           const configStep = config.config.step || 50
 
@@ -211,7 +210,6 @@ export class FrameLoop {
             velocity = velocity + acceleration * step
             position = position + velocity * step
           }
-          console.log({ v0, position, velocity })
         }
 
         function rk4() {
@@ -288,6 +286,7 @@ export class FrameLoop {
           const m = config.mass!
           const k = config.tension!
           const x0 = to - from
+          const v1 = animated.v0 || v0
 
           const zeta = c / (2 * Math.sqrt(k * m)) // damping ratio (dimensionless)
           const w0 = Math.sqrt(k / m) / 1000 // undamped angular frequency of the oscillator (rad/ms)
@@ -301,7 +300,7 @@ export class FrameLoop {
             position =
               to -
               envelope *
-                (((v0 + zeta * w0 * x0) / w1) * Math.sin(w1 * t) +
+                (((v1 + zeta * w0 * x0) / w1) * Math.sin(w1 * t) +
                   x0 * Math.cos(w1 * t))
 
             // This looks crazy -- it's actually just the derivative of the
@@ -310,16 +309,16 @@ export class FrameLoop {
               zeta *
                 w0 *
                 envelope *
-                ((Math.sin(w1 * t) * (-v0 + zeta * w0 * x0)) / w1 +
+                ((Math.sin(w1 * t) * (-v1 + zeta * w0 * x0)) / w1 +
                   x0 * Math.cos(w1 * t)) -
               envelope *
-                (Math.cos(w1 * t) * (-v0 + zeta * w0 * x0) -
+                (Math.cos(w1 * t) * (-v1 + zeta * w0 * x0) -
                   w1 * x0 * Math.sin(w1 * t))
           } else if (zeta === 1) {
             // Critically damped
             const envelope = Math.exp(-w0 * t)
-            position = to - envelope * (x0 + (-v0 + w0 * x0) * t)
-            velocity = envelope * (-v0 * (t * w0 - 1) + t * x0 * (w0 * w0))
+            position = to - envelope * (x0 + (-v1 + w0 * x0) * t)
+            velocity = envelope * (-v1 * (t * w0 - 1) + t * x0 * (w0 * w0))
           } else {
             // Overdamped
             const envelope = Math.exp(-zeta * w0 * t)
@@ -327,18 +326,18 @@ export class FrameLoop {
             position =
               to -
               (envelope *
-                ((v0 + zeta * w0 * x0) * Math.sinh(w2 * t) +
+                ((-v1 + zeta * w0 * x0) * Math.sinh(w2 * t) +
                   w2 * x0 * Math.cosh(w2 * t))) /
                 w2
             velocity =
               (envelope *
                 zeta *
                 w0 *
-                (Math.sinh(w2 * t) * (v0 + zeta * w0 * x0) +
+                (Math.sinh(w2 * t) * (-v1 + zeta * w0 * x0) +
                   x0 * w2 * Math.cosh(w2 * t))) /
                 w2 -
               (envelope *
-                (w2 * Math.cosh(w2 * t) * (v0 + zeta * w0 * x0) +
+                (w2 * Math.cosh(w2 * t) * (-v1 + zeta * w0 * x0) +
                   w2 * w2 * x0 * Math.sinh(w2 * t))) /
                 w2
           }
@@ -348,7 +347,7 @@ export class FrameLoop {
           const c = config.friction!
           const m = config.mass!
           const k = config.tension!
-          const t = animated.elapsedTime!
+          const t = animated.elapsedTime! - animated.resetTime!
 
           const zeta = c / (2 * Math.sqrt(k * m))
           const w0 = Math.sqrt(k / m) / 1000
@@ -364,18 +363,20 @@ export class FrameLoop {
             position =
               to -
               envelope *
-                (((v1 + zeta * w0 * x0) / w1) * Math.sin(w1 * t) +
+                (((-v1 + zeta * w0 * x0) / w1) * Math.sin(w1 * t) +
                   x0 * Math.cos(w1 * t))
           } else {
             const envelope = Math.exp(-w0 * t)
-            position = to - envelope * (x0 + (v1 + w0 * x0) * t)
+            position = to - envelope * (x0 + (-v1 + w0 * x0) * t)
           }
           velocity = (position - prevPosition) / dt
-          console.log({ position, v1, t, x0, velocity })
         }
 
         const t0 = performance.now()
         switch (config.config.method) {
+          case 'euler':
+            euler()
+            break
           case 'analytical':
             analytical()
             break
@@ -403,11 +404,10 @@ export class FrameLoop {
         if (isBouncing) {
           velocity =
             -velocity * (typeof config.clamp! === 'number' ? config.clamp! : 0)
-          position = 2 * to - position
-          // animated.from = position
-          // animated.v0 = velocity
-          // animated.elapsedTime = 0
-          console.log('+BOUNCE', velocity, position)
+          position = to
+          animated.from = position
+          animated.v0 = velocity
+          animated.resetTime = animated.elapsedTime
         }
 
         const isVelocity = Math.abs(velocity) <= precision
