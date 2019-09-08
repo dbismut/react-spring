@@ -1,5 +1,5 @@
-import * as G from 'shared/globals'
 import { Animated } from '@react-spring/animated'
+import * as G from 'shared/globals'
 import { FrameRequestCallback } from 'shared/types'
 import { Controller, FrameUpdate } from './Controller'
 import { ActiveAnimation } from './types/spring'
@@ -160,12 +160,13 @@ export class FrameLoop {
         : config.initialVelocity
 
       const precision =
-        config.precision || Math.min(1, Math.abs(to - from) / 1000)
+        config.precision || Math.min(1, Math.abs(to - from) / 1000) || 0.005
 
       let finished = false
       let position = animated.lastPosition
 
       let velocity: number = 0
+      animated.cycles++
 
       // Duration easing
       if (config.duration != null) {
@@ -194,13 +195,12 @@ export class FrameLoop {
         function euler() {
           velocity =
             animated.lastVelocity !== void 0 ? animated.lastVelocity : v0
+          console.log(velocity)
 
           const configStep = config.config.step || 50
 
           const step =
             configStep > 20 ? (configStep / config.w0) * 0.001 : configStep
-
-          console.log(step)
 
           const numSteps = Math.ceil(dt / step)
 
@@ -211,34 +211,7 @@ export class FrameLoop {
             velocity = velocity + acceleration * step
             position = position + velocity * step
           }
-        }
-
-        function verlet() {
-          const friction = config.friction!
-          const tension = config.tension!
-          const mass = config.mass!
-
-          const configStep = config.config.step || 50
-          let step =
-            configStep > 20 ? (configStep / config.w0) * 0.001 : configStep
-
-          const numSteps = Math.ceil(dt / step)
-          for (let n = 0; n < numSteps; ++n) {
-            const springForce = -config.tension! * 0.000001 * (position - to)
-            const dampingForce = -config.friction! * 0.001 * velocity
-            const acceleration = (springForce + dampingForce) / config.mass!
-
-            // velocity =
-
-            velocity =
-              ((1 - (friction * step) / 2) / (1 + step / 2)) * velocity +
-              (step / (mass * (1 + (friction * step) / 2))) *
-                (-tension * (position - to)) -
-              tension / mass / (1 + (friction * step) / 2)
-
-            position = position + velocity * step
-            console.log(velocity)
-          }
+          console.log({ v0, position, velocity })
         }
 
         function rk4() {
@@ -379,7 +352,8 @@ export class FrameLoop {
 
           const zeta = c / (2 * Math.sqrt(k * m))
           const w0 = Math.sqrt(k / m) / 1000
-          const x0 = to - from
+          const x0 = to - (animated.from || from)
+          const v1 = animated.v0 || v0
 
           const prevPosition = position
 
@@ -390,13 +364,14 @@ export class FrameLoop {
             position =
               to -
               envelope *
-                (((v0 + zeta * w0 * x0) / w1) * Math.sin(w1 * t) +
+                (((v1 + zeta * w0 * x0) / w1) * Math.sin(w1 * t) +
                   x0 * Math.cos(w1 * t))
           } else {
             const envelope = Math.exp(-w0 * t)
-            position = to - envelope * (x0 + (v0 + w0 * x0) * t)
+            position = to - envelope * (x0 + (v1 + w0 * x0) * t)
           }
           velocity = (position - prevPosition) / dt
+          console.log({ position, v1, t, x0, velocity })
         }
 
         const t0 = performance.now()
@@ -410,9 +385,6 @@ export class FrameLoop {
           case 'simple':
             simple()
             break
-          case 'verlet':
-            verlet()
-            break
           default:
             euler()
         }
@@ -422,7 +394,7 @@ export class FrameLoop {
 
         // Conditions for stopping the spring animation
         const isBouncing =
-          config.clamp !== false && config.tension !== 0
+          config.clamp !== false && config.clamp !== -1 && config.tension !== 0
             ? from < to
               ? position > to && velocity > 0
               : position < to && velocity < 0
@@ -431,6 +403,11 @@ export class FrameLoop {
         if (isBouncing) {
           velocity =
             -velocity * (typeof config.clamp! === 'number' ? config.clamp! : 0)
+          position = 2 * to - position
+          // animated.from = position
+          // animated.v0 = velocity
+          // animated.elapsedTime = 0
+          console.log('+BOUNCE', velocity, position)
         }
 
         const isVelocity = Math.abs(velocity) <= precision
@@ -438,7 +415,9 @@ export class FrameLoop {
           config.tension !== 0 ? Math.abs(to - position) <= precision : true
 
         finished =
-          (isBouncing && velocity === 0) || (isVelocity && isDisplacement)
+          animated.cycles >= 200 ||
+          (isBouncing && velocity === 0) ||
+          (isVelocity && isDisplacement)
       }
       // Trails aren't done until their parents conclude
       if (finished && !(target && !target.done)) {
