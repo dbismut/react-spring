@@ -179,6 +179,9 @@ export interface ActiveAnimation<T = unknown, P extends string = string>
   initialVelocity: number
   immediate: boolean
   w0: number
+  w1: number
+  w2: number
+  zeta: number
   toValues: Arrify<T>
   fromValues: Arrify<T>
 }

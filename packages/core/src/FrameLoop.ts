@@ -285,23 +285,23 @@ export class FrameLoop {
           const c = config.friction!
           const m = config.mass!
           const k = config.tension!
-          const x0 = to - from
-          const v1 = animated.v0 || v0
+          const w0 = config.w0
+          const x_0 = to - (animated.x_0 || from)
+          const v_0 = animated.v_0 || v0
 
           const zeta = c / (2 * Math.sqrt(k * m)) // damping ratio (dimensionless)
-          const w0 = Math.sqrt(k / m) / 1000 // undamped angular frequency of the oscillator (rad/ms)
-          const w1 = w0 * Math.sqrt(1.0 - zeta * zeta) // exponential decay
-          const w2 = w0 * Math.sqrt(zeta * zeta - 1.0) // frequency of damped oscillation
+          const t = animated.elapsedTime! - animated.resetTime!
 
-          const t = animated.elapsedTime!
           if (zeta < 1) {
+            const w1 = config.w1 // exponential decay
+
             // Under damped
             const envelope = Math.exp(-zeta * w0 * t)
             position =
               to -
               envelope *
-                (((v1 + zeta * w0 * x0) / w1) * Math.sin(w1 * t) +
-                  x0 * Math.cos(w1 * t))
+                (((v_0 + zeta * w0 * x_0) / w1) * Math.sin(w1 * t) +
+                  x_0 * Math.cos(w1 * t))
 
             // This looks crazy -- it's actually just the derivative of the
             // position function
@@ -309,50 +309,48 @@ export class FrameLoop {
               zeta *
                 w0 *
                 envelope *
-                ((Math.sin(w1 * t) * (-v1 + zeta * w0 * x0)) / w1 +
-                  x0 * Math.cos(w1 * t)) -
+                ((Math.sin(w1 * t) * (-v_0 + zeta * w0 * x_0)) / w1 +
+                  x_0 * Math.cos(w1 * t)) -
               envelope *
-                (Math.cos(w1 * t) * (-v1 + zeta * w0 * x0) -
-                  w1 * x0 * Math.sin(w1 * t))
+                (Math.cos(w1 * t) * (-v_0 + zeta * w0 * x_0) -
+                  w1 * x_0 * Math.sin(w1 * t))
           } else if (zeta === 1) {
             // Critically damped
             const envelope = Math.exp(-w0 * t)
-            position = to - envelope * (x0 + (-v1 + w0 * x0) * t)
-            velocity = envelope * (-v1 * (t * w0 - 1) + t * x0 * (w0 * w0))
+            position = to - envelope * (x_0 + (-v_0 + w0 * x_0) * t)
+            velocity = envelope * (-v_0 * (t * w0 - 1) + t * x_0 * (w0 * w0))
           } else {
             // Overdamped
+            const w2 = config.w2 // frequency of damped oscillation
             const envelope = Math.exp(-zeta * w0 * t)
 
             position =
               to -
               (envelope *
-                ((-v1 + zeta * w0 * x0) * Math.sinh(w2 * t) +
-                  w2 * x0 * Math.cosh(w2 * t))) /
+                ((-v_0 + zeta * w0 * x_0) * Math.sinh(w2 * t) +
+                  w2 * x_0 * Math.cosh(w2 * t))) /
                 w2
             velocity =
               (envelope *
                 zeta *
                 w0 *
-                (Math.sinh(w2 * t) * (-v1 + zeta * w0 * x0) +
-                  x0 * w2 * Math.cosh(w2 * t))) /
+                (Math.sinh(w2 * t) * (-v_0 + zeta * w0 * x_0) +
+                  x_0 * w2 * Math.cosh(w2 * t))) /
                 w2 -
               (envelope *
-                (w2 * Math.cosh(w2 * t) * (-v1 + zeta * w0 * x0) +
-                  w2 * w2 * x0 * Math.sinh(w2 * t))) /
+                (w2 * Math.cosh(w2 * t) * (-v_0 + zeta * w0 * x_0) +
+                  w2 * w2 * x_0 * Math.sinh(w2 * t))) /
                 w2
           }
         }
 
-        function simple() {
-          const c = config.friction!
-          const m = config.mass!
-          const k = config.tension!
+        function simplified() {
           const t = animated.elapsedTime! - animated.resetTime!
 
-          const zeta = c / (2 * Math.sqrt(k * m))
-          const w0 = Math.sqrt(k / m) / 1000
-          const x0 = to - (animated.from || from)
-          const v1 = animated.v0 || v0
+          const zeta = config.zeta
+          const w0 = config.w0
+          const x_0 = to - (animated.x_0 || from)
+          const v_0 = animated.v_0 || v0
 
           const prevPosition = position
 
@@ -363,11 +361,11 @@ export class FrameLoop {
             position =
               to -
               envelope *
-                (((-v1 + zeta * w0 * x0) / w1) * Math.sin(w1 * t) +
-                  x0 * Math.cos(w1 * t))
+                (((-v_0 + zeta * w0 * x_0) / w1) * Math.sin(w1 * t) +
+                  x_0 * Math.cos(w1 * t))
           } else {
             const envelope = Math.exp(-w0 * t)
-            position = to - envelope * (x0 + (-v1 + w0 * x0) * t)
+            position = to - envelope * (x_0 + (-v_0 + w0 * x_0) * t)
           }
           velocity = (position - prevPosition) / dt
         }
@@ -383,11 +381,11 @@ export class FrameLoop {
           case 'rk4':
             rk4()
             break
-          case 'simple':
-            simple()
+          case 'simplified':
+            simplified()
             break
           default:
-            euler()
+            simplified()
         }
 
         const t1 = performance.now()
@@ -405,8 +403,8 @@ export class FrameLoop {
           velocity =
             -velocity * (typeof config.clamp! === 'number' ? config.clamp! : 0)
           position = to
-          animated.from = position
-          animated.v0 = velocity
+          animated.x_0 = position
+          animated.v_0 = velocity
           animated.resetTime = animated.elapsedTime
         }
 
@@ -415,7 +413,7 @@ export class FrameLoop {
           config.tension !== 0 ? Math.abs(to - position) <= precision : true
 
         finished =
-          animated.cycles >= 200 ||
+          (config.config.limitCycles && animated.cycles >= 200) ||
           (isBouncing && velocity === 0) ||
           (isVelocity && isDisplacement)
       }

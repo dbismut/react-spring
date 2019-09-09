@@ -1,7 +1,7 @@
 import { Animatable, SpringValue, InterpolatorArgs, is, each } from 'shared'
 import { AnimatedProps } from './AnimatedProps'
 import { to } from './interpolate'
-import { Animated, animatedTag } from './Animated'
+import { Animated } from './Animated'
 import { deprecateInterpolate } from 'shared/deprecations'
 
 /** An animated number or a native attribute value */
@@ -12,9 +12,22 @@ export class AnimatedValue<T = unknown> extends Animated
   value: T
   startPosition!: number
   lastPosition!: number
-  lastVelocity!: number | null
+  lastVelocity!: number | undefined
   elapsedTime!: number
   done!: boolean
+
+  // performance specific attributes
+  performance: number = 0
+  cycles!: number
+
+  // rk4
+  tempPosition!: number
+  tempVelocity!: number
+
+  // analytical
+  v_0: number | undefined
+  x_0: number | undefined
+  resetTime: number | undefined
 
   constructor(value: T) {
     super()
@@ -56,12 +69,10 @@ export class AnimatedValue<T = unknown> extends Animated
       this.lastPosition = this.value
       this.performance = 0
       this.cycles = 0
-      this.v0 = undefined
-      this.from = undefined
+      this.v_0 = isActive ? this.lastVelocity : undefined
+      this.x_0 = undefined
       if (!isActive) {
         this.lastVelocity = undefined
-      } else {
-        this.v0 = this.lastVelocity
       }
       this.elapsedTime = 0
       this.resetTime = 0

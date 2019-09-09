@@ -638,6 +638,14 @@ export class Controller<State extends Indexable = any> {
         changed = true
         const tension = withDefault(config.tension, 170)
         const mass = withDefault(config.mass, 1)
+        const friction = withDefault(config.friction, 26)
+
+        const w0 = Math.sqrt(tension / mass) / 1000 // angular frequency in rad/ms
+        const zeta = friction / (2 * Math.sqrt(tension * mass)) // damping ratio
+
+        const w1 = w0 * Math.sqrt(1.0 - zeta * zeta) // exponential decay
+        const w2 = w0 * Math.sqrt(zeta * zeta - 1.0) // frequency of damped oscillation
+
         this.animations[key] = {
           key,
           idle: false,
@@ -653,8 +661,11 @@ export class Controller<State extends Indexable = any> {
           decay: config.decay,
           mass,
           tension,
-          friction: withDefault(config.friction, 26),
-          w0: Math.sqrt(tension / mass) / 1000, // angular frequency in rad/ms
+          friction,
+          w0,
+          w1,
+          w2,
+          zeta,
           initialVelocity: withDefault(config.velocity, 0),
           clamp: withDefault(config.clamp, false),
           precision: config.precision,
