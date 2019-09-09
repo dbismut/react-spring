@@ -282,15 +282,12 @@ export class FrameLoop {
         }
 
         function analytical() {
-          const c = config.friction!
-          const m = config.mass!
-          const k = config.tension!
+          const t = animated.elapsedTime! - animated.resetTime!
+
+          const zeta = config.zeta
           const w0 = config.w0
           const x_0 = to - (animated.x_0 || from)
           const v_0 = animated.v_0 || v0
-
-          const zeta = c / (2 * Math.sqrt(k * m)) // damping ratio (dimensionless)
-          const t = animated.elapsedTime! - animated.resetTime!
 
           if (zeta < 1) {
             const w1 = config.w1 // exponential decay
@@ -300,7 +297,7 @@ export class FrameLoop {
             position =
               to -
               envelope *
-                (((v_0 + zeta * w0 * x_0) / w1) * Math.sin(w1 * t) +
+                (((-v_0 + zeta * w0 * x_0) / w1) * Math.sin(w1 * t) +
                   x_0 * Math.cos(w1 * t))
 
             // This looks crazy -- it's actually just the derivative of the
@@ -334,11 +331,11 @@ export class FrameLoop {
               (envelope *
                 zeta *
                 w0 *
-                (Math.sinh(w2 * t) * (-v_0 + zeta * w0 * x_0) +
+                (Math.sinh(w2 * t) * (v_0 + zeta * w0 * x_0) +
                   x_0 * w2 * Math.cosh(w2 * t))) /
                 w2 -
               (envelope *
-                (w2 * Math.cosh(w2 * t) * (-v_0 + zeta * w0 * x_0) +
+                (w2 * Math.cosh(w2 * t) * (v_0 + zeta * w0 * x_0) +
                   w2 * w2 * x_0 * Math.sinh(w2 * t))) /
                 w2
           }
